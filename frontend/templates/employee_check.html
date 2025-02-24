@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Check-In/Out</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center  font-roboto">
+
+    <div class="relative w-[700px] mt-8 mb-8  bg-[linear-gradient(to_right,#040A19,#222B80)] flex flex-col items-center justify-center  rounded-lg shadow-lg">
+
+        <div class="w-full pl-4">
+
+            <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="logo" class=" w-[259px] h-[110.85px]"/>
+          </div>
+
+          <div class="w-[500px] h-[900px] mb-20  flex flex-col items-center justify-center rounded-[30px] bg-[#B8B8B880] p-10 flex flex-col items-center relative">
+          <button class="bg-[linear-gradient(to_right,#040A19,#222B80)] text-white w-[100px] h-[40px] rounded-[10px] font-bold absolute top-0 right-0 mt-2 mr-4" id="logout" onclick="window.location.href='/logout'">Log Out</button>
+
+          
+
+          <div class="flex flex-col gap-1 mt-8">
+            <video id="video" class="1image w-[250px] h-[190px] bg-gray-100" autoplay playsinline muted>
+                   
+            </video>
+
+            <button class="bg-[linear-gradient(to_right,#040A19,#222B80)] text-white w-[100px] h-[40px] rounded-[10px] font-bold mb-20 ml-20  mt-2 mr-4" id="capture">Capture</button>
+
+
+
+            <div class="1image w-[250px] h-[190px] bg-gray-100">
+                <div id="previewContainer" style="display: none;">
+                    <!-- <p>Captured Image:</p> -->
+                    <img id="capturedImage" src="" alt="Captured Image">
+                </div>
+                <input type="hidden" id="captured_image">
+        
+            </div>
+
+            <button class="bg-[linear-gradient(to_right,#040A19,#222B80)] text-white w-[100px] h-[40px] rounded-[10px] font-bold mb-20 ml-20  mt-2 mr-4" id="submit" style="display: none;">Submit</button>
+            
+      </div>
+
+
+
+
+        
+
+        
+
+        
+
+        <div id="message" style="margin-top: 10px; font-weight: bold;"></div>
+
+        <div id="processingContainer" style="display: none; text-align: center;">
+            <p>Processing...</p>
+            <img src="{{ url_for('static', filename='processing.gif') }}" alt="Processing..." width="80">
+        </div>
+
+        <div id="resultContainer" style="display: none; text-align: center;">
+            <img id="resultGif" src="" alt="Result" width="100">
+            <p id="resultText" style="font-weight: bold; margin-top: 10px;"></p>
+        </div>
+
+        <audio id="speechAudio" style="display: none;"></audio>
+
+
+
+
+    </div>
+
+    </div>
+
+    <script>
+        let video = document.getElementById('video');
+        let captureBtn = document.getElementById('capture');
+        let submitBtn = document.getElementById('submit');
+        let capturedImage = document.getElementById('capturedImage');
+        let previewContainer = document.getElementById('previewContainer');
+        let capturedImageInput = document.getElementById('captured_image');
+        let messageDiv = document.getElementById('message');
+        let speechAudio = document.getElementById('speechAudio');
+        let logoutBtn = document.getElementById('logout');
+
+        let processingContainer = document.getElementById('processingContainer');
+        let resultContainer = document.getElementById('resultContainer');
+        let resultGif = document.getElementById('resultGif');
+        let resultText = document.getElementById('resultText');
+
+        let cameraStream = null;
+
+        function startCamera() {
+            console.log("Requesting camera access...");
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+                .then(stream => {
+                    console.log("Camera started successfully.");
+                    video.srcObject = stream;
+                    cameraStream = stream;
+                })
+                .catch(error => {
+                    console.error("Error accessing camera: ", error);
+                    alert("Camera access denied. Please allow camera permissions.");
+                });
+        }
+
+        window.onload = function () {
+            startCamera();
+        };
+
+        captureBtn.addEventListener('click', function () {
+            let canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            let ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            let imageDataUrl = canvas.toDataURL('image/png');
+
+            if (!imageDataUrl) {
+                alert("Error: No image captured. Please try again.");
+                return;
+            }
+
+            capturedImage.src = imageDataUrl;
+            capturedImage.style.display = "block";
+            previewContainer.style.display = "block";
+            capturedImageInput.value = imageDataUrl;
+            submitBtn.style.display = "block";
+        });
+
+        submitBtn.addEventListener('click', function () {
+            let imageData = capturedImageInput.value;
+
+            if (!imageData) {
+                alert("No image captured! Please capture an image first.");
+                return;
+            }
+
+            console.log("Sending Image Data to Backend:", imageData);
+
+            captureBtn.style.display = "none";
+            submitBtn.style.display = "none";
+            previewContainer.style.display = "block";
+            messageDiv.innerHTML = ""; 
+            video.style.display = "none"; 
+            logoutBtn.style.display = "none"; 
+
+            processingContainer.style.display = "block"; 
+
+            fetch('/employee_check', {
+                method: 'POST',
+                body: JSON.stringify({ captured_image: imageData }),
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                processingContainer.style.display = "none"; 
+                resultContainer.style.display = "block";
+
+                if (data.message.includes("Thanks")) {
+                    // Recognized case
+                    resultGif.src = "{{ url_for('static', filename='recognized.gif') }}";
+                    resultText.innerHTML = data.message; 
+                } else {
+                    // Not recognized case
+                    resultGif.src = "{{ url_for('static', filename='not_recognized.gif') }}";
+                    resultText.innerHTML = "Recognition Failed"; 
+                }
+
+                if (data.speech_url) {
+                    speechAudio.src = data.speech_url;
+                    speechAudio.play().catch(error => console.error("Audio Play Error:", error));
+                }
+
+                setTimeout(() => {
+                    location.reload();
+                }, 4000);
+            })
+            .catch(error => console.error("Error submitting image:", error));
+        });
+
+    </script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
